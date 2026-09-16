@@ -1,0 +1,2 @@
+# Sales projection interface
+Mode: Operate. Light workspace for desktop spreadsheet tasks, responsive single-column mobile upload flow. Dark forest green controls and text, soft green formula banner, white upload and table surfaces, thin neutral green borders. Screen leads with upload and download actions. Explicit empty, busy, invalid, unmapped, and saved states. Tables use tabular numerals and horizontal overflow on narrow screens. No illustrative images required.

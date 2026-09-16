@@ -1,0 +1,1 @@
+{"name":"teame-sales-projection","version":"1.0.0","private":true,"type":"module","scripts":{"dev":"vite --host 0.0.0.0","build":"vite build","preview":"vite preview --host 0.0.0.0","test":"node --test tests/*.test.js"},"dependencies":{"@supabase/supabase-js":"^2.57.0","exceljs":"4.4.0","papaparse":"5.5.3"},"devDependencies":{"vite":"^7.1.0"},"engines":{"node":">=22"}}
