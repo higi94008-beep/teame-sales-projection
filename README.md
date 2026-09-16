@@ -1,63 +1,134 @@
 # TEAME Sales Projection
 
-A complete Vercel-ready web app with optional Supabase authentication and private cloud persistence. CSV and XLSX uploads, mapping validation, searchable paginated reports, and Excel download.
+A Vercel-ready internal sales projection module with mandatory Supabase email/password login, a persistent one-time item master, separate Flipkart and Website upload formats, adjustable projection percentage, case-pack rounding, and item-wise Excel download.
 
-## Run locally
-1. Install Node.js 22 or newer.
-2. Open a terminal in this folder.
-3. Run `npm ci`.
-4. Run `npm run dev` and open the displayed localhost URL.
+## Workflow
 
-The full projection workflow works without Supabase. Data remains in memory for the current browser session. Nothing is saved automatically. Download the report before closing, or configure cloud saving below.
+1. Sign in with a Supabase user account.
+2. Upload the item master once. It is saved privately in Supabase and loads automatically at future logins.
+3. Select **Flipkart** or **Website**.
+4. Upload the matching previous-sales report.
+5. Enter the projection percentage.
+6. Review the item-wise projection.
+7. Download the final Excel report.
 
-## Input files
-Use the downloadable templates in the app, also in `public/templates/`.
+## Item master
 
-**Item master:** `Item ID | Product Id`
+Required columns:
 
-**Sales report:** `Product Id | Order Date | SKU ID | Gross Units | Cancellation Units | Final Sale Units`
+`Product Id | Item Id | Case Pack`
 
-One Product Id must map to exactly one Item ID. Multiple Product IDs may share an Item ID. Repeated identical master mappings are deduplicated. IDs are case-sensitive. Keep ID columns as text in Excel to preserve leading zeroes. Headers ignore case, spaces, underscores, and hyphens. The first Excel worksheet is read, with headers in its first row. Use numeric whole units without thousands separators. The order date is retained as source information and is not used as a filter. Empty rows are ignored; invalid rows block the entire upload with a row number. Limits: 15 MB per file and 50,000 data rows. Save older `.xls` files as `.xlsx` first.
+Example case packs can be 12, 18, 24, or 36. Any positive whole-number case pack is supported.
 
-Each upload replaces the current file. Sales rows are not deduplicated because the source has no unique Order ID; repeated product/date rows may be legitimate orders. Ensure your source report does not contain repeated exports or subtotal rows.
+Rules:
+- One Product Id can map to only one Item Id.
+- An Item Id must have one consistent Case Pack.
+- Multiple Product IDs may map to the same Item Id.
+- The master is stored against the signed-in Supabase user.
+- The UI includes a **Replace master** option for controlled future updates, but daily sales uploads do not require re-uploading the master.
 
-## Projection and download
-- Product detail groups by Product Id + SKU ID and maps each group to Item ID.
-- Gross Units(total) is the sum of uploaded Gross Units.
-- Projected unit = CEILING(Gross Units(total) × 1.25).
-- Cancellation Units and Final Sale Units are retained but do not affect the calculation.
-- Unmapped Product IDs remain visible and block export until mapped.
-- The Excel download has Product detail, Item totals, and Read me worksheets.
-- Item totals sums Gross Units across all products/SKUs for each Item ID and then calculates the uplift. Whole-unit rounding means its projection may differ from the sum of rounded product-detail rows.
-- Search affects the screen only; download always includes the entire report.
-- Master items without sales do not appear in the report.
-- This is a 25% uplift of the entire uploaded period, not a time-normalized monthly forecast or a statistical prediction.
+## Flipkart upload
+
+Required columns:
+
+`Product Id | Item Id | Gross Units`
+
+The app validates both Product Id and Item Id against the saved master, then aggregates Gross Units by Item Id.
+
+## Website upload
+
+Required columns:
+
+`Item Id | Gross Units`
+
+The app validates Item Id against the saved master and aggregates Gross Units by Item Id.
+
+## Projection calculation
+
+For each Item Id:
+
+1. Sum Gross Units.
+2. Apply the percentage entered by the user.
+3. Round **up** to the next complete Case Pack from the saved master.
+
+Formula:
+
+`Raw projection = Gross Units × (1 + Percentage / 100)`
+
+`Final projected unit = CEILING(Raw projection / Case Pack) × Case Pack`
+
+Example:
+
+- Gross Units: 100
+- Projection: 25%
+- Case Pack: 12
+- Raw projection: 125
+- Final projected unit: 132
+
+The final screen and downloaded workbook use:
+
+`Item Id | Gross Units(total) | Projection Percentage | Projected Unit`
 
 ## Supabase setup
-1. Create a Supabase project.
-2. Open SQL Editor and run all of `supabase/schema.sql`.
-3. In project API settings, copy the project URL and publishable key (the legacy anon key also works). Never use a secret or service-role key in this app.
-4. Copy `.env.example` to `.env` and enter the two values. Restart the local dev server.
-5. Enable Email authentication. For an internal app, create the intended users in Supabase Authentication, then disable public sign-ups. Otherwise users can use Create account in the app; email confirmation follows your Supabase configuration.
-6. In Authentication URL Configuration, set Site URL to your deployed Vercel URL and add your local development URL if you need local confirmation links.
-7. Sign in, upload your files, and choose Save workspace. On another device, sign in and choose Load saved.
 
-Cloud data is a single JSON workspace per authenticated user with row-level security. Users cannot read or overwrite another user's workspace. Saves replace the previously saved workspace atomically. No team sharing or version history is implemented. The last save wins if two devices edit the same account. Uploaded raw files are not stored, only validated rows and filenames. Workspace payloads have a 25 MB database limit. Supabase and account-specific service limits also apply.
+### 1. Run the database schema
+
+Open **Supabase > SQL Editor** and run all of:
+
+`supabase/schema.sql`
+
+This creates the `projection_masters` table with Row Level Security. Each user can access only their own saved master.
+
+### 2. Create login users
+
+In Supabase:
+
+**Authentication > Users > Add user**
+
+Create each authorized user's email and password. The application does not offer public account creation.
+
+### 3. Environment variables
+
+Local development: copy `.env.example` to `.env` and fill in:
+
+```text
+VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_OR_ANON_KEY
+```
+
+Never use a service-role key in this Vite browser application.
+
+In Vercel add the same two values under:
+
+**Project > Settings > Environment Variables**
+
+Then redeploy.
+
+## Run locally
+
+Requires Node.js 22 or newer.
+
+```bash
+npm ci
+npm run dev
+```
 
 ## Deploy to Vercel
-1. Upload the contents of this folder to your own Git repository, excluding node_modules, dist, and .env.
-2. Import the repository in Vercel. If this folder is nested, select it as Root Directory.
-3. Select Vite. Build command: `npm run build`. Output directory: `dist`. Node.js: 22 or newer.
-4. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in Vercel project environment variables.
-5. Deploy, then configure the Supabase Site URL as above. Redeploy after any environment-variable changes.
 
-No separate backend server is needed. All file processing happens in the browser; authenticated cloud saves use Supabase HTTPS APIs.
+1. Push this project to GitHub.
+2. Import the repository into Vercel.
+3. Framework preset: Vite.
+4. Build command: `npm run build`.
+5. Output directory: `dist`.
+6. Add the two Supabase environment variables.
+7. Deploy.
+8. Create the authorized login users in Supabase Authentication.
 
 ## Verification
-`npm test` checks aggregation, item rollups, mapping conflicts, missing mappings, duplicate master pairs, and invalid unit values. `npm run build` creates the production build. Automated file tests exercise CSV and XLSX parsing and the generated Excel workbook. Browser visual verification was unavailable in the build environment, so test the upload/download flow once after deployment. Live Supabase authentication and RLS must be smoke-tested against your own configured project; credentials are not supplied in this package.
 
-Official setup references:
-- https://vercel.com/docs/frameworks/frontend/vite
-- https://vercel.com/docs/environment-variables
-- https://supabase.com/docs/guides/database/postgres/row-level-security
-- https://supabase.com/docs/guides/auth/passwords
+```bash
+npm test
+npm run build
+```
+
+The test suite covers master validation, source-file validation, aggregation, custom percentage uplift, and case-pack rounding.
